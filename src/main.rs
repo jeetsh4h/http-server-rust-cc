@@ -70,17 +70,18 @@ fn main() {
                 if path == "/" {
                     respond_202(&mut _stream);
                 } else {
-                    respond_404(&mut _stream);
+                    // further parse the path that results after parsing the buffer,
+                    // give response accordingly
+                    let path_parsed: Vec<&str> = path.split('/').collect();
+                    if path_parsed[1].to_string() == "echo" {
+                        echo_respond(&mut _stream, &path_parsed[2].to_string());
+                    } else {
+                        // not an echo command
+                        respond_404(&mut _stream);
+                    }
                 }
                 
-                // further parse the path that results after parsing the buffer,
-                // give response accordingly
-                let path_parsed: Vec<&str> = path.split('/').collect();
-                if path_parsed[1].to_string() == "echo" {
-                    echo_respond(&mut _stream, &path_parsed[2].to_string());
-                } else {
-                    println!("not an echo command");
-                }
+                
 
             }
             Err(err) => {
