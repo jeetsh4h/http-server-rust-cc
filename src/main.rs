@@ -3,19 +3,19 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-fn respond_202(stream: &mut TcpStream) {
-    match stream.write(b"HTTP/1.1 200 OK\r\n\r\n") {
-        Ok(size) => println!("Sent {size} bytes"),
-        Err(err) => println!("error writing to stream: {err}"),
-    };
-}
+// fn respond_202(stream: &mut TcpStream) {
+//     match stream.write(b"HTTP/1.1 200 OK\r\n\r\n") {
+//         Ok(size) => println!("Sent {size} bytes"),
+//         Err(err) => println!("error writing to stream: {err}"),
+//     };
+// }
 
-fn respond_404(stream: &mut TcpStream) {
-    match stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n") {
-        Ok(size) => println!("Sent {size} bytes"),
-        Err(err) => println!("error writing to stream: {err}"),
-    };
-}
+// fn respond_404(stream: &mut TcpStream) {
+//     match stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n") {
+//         Ok(size) => println!("Sent {size} bytes"),
+//         Err(err) => println!("error writing to stream: {err}"),
+//     };
+// }
 
 fn parse_path(http_response: &String) -> String {
     let whitespace_split_response: Vec<&str> = http_response.split_whitespace().collect();
