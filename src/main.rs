@@ -3,12 +3,12 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-// fn respond_202(stream: &mut TcpStream) {
-//     match stream.write(b"HTTP/1.1 200 OK\r\n\r\n") {
-//         Ok(size) => println!("Sent {size} bytes"),
-//         Err(err) => println!("error writing to stream: {err}"),
-//     };
-// }
+fn respond_202(stream: &mut TcpStream) {
+    match stream.write(b"HTTP/1.1 200 OK\r\n\r\n") {
+        Ok(size) => println!("Sent {size} bytes"),
+        Err(err) => println!("error writing to stream: {err}"),
+    };
+}
 
 fn respond_404(stream: &mut TcpStream) {
     match stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n") {
@@ -67,11 +67,11 @@ fn main() {
                 // parse the buffer, turn into the string, then give a response accordingly 
                 let buf_as_str = unsafe { std::str::from_utf8_unchecked(&buffer) };
                 let path = parse_path(&buf_as_str.to_string());
-                // if path == "/" {
-                //     respond_202(&mut _stream);
-                // } else {
-                //     respond_404(&mut _stream);
-                // }
+                if path == "/" {
+                    respond_202(&mut _stream);
+                } else {
+                    respond_404(&mut _stream);
+                }
                 
                 // further parse the path that results after parsing the buffer,
                 // give response accordingly
@@ -79,7 +79,7 @@ fn main() {
                 if path_parsed[1].to_string() == "echo" {
                     echo_respond(&mut _stream, &path_parsed[2].to_string());
                 } else {
-                    respond_404(&mut _stream);
+                    println!("not an echo command");
                 }
 
             }
