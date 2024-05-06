@@ -21,7 +21,26 @@ fn parse_path(http_response: &String) -> String {
     let whitespace_split_response: Vec<&str> = http_response.split_whitespace().collect();
 
     // this assumes that I will always receive a valid HTTP request
+    // I am only returning a path
     return whitespace_split_response[1].to_string();
+}
+
+fn echo_respond(stream: &mut TcpStream, echo_string: &String ) {
+    let status_line = "HTTP/1.1 200 OK\r\n";
+    let content_type = "Content-Type: text/plain\r\n";
+    let content_length = format!("Content-Length: {}\r\n\r\n", echo_string.len());
+    let echo_fmt = format!("{}", echo_string);
+
+    let mut response = String::new();
+    response.push_str(status_line);
+    response.push_str(content_type);
+    response.push_str(&content_length);
+    response.push_str(&echo_fmt);
+
+    match stream.write(response.as_bytes()) {
+        Ok(size) => println!("Sent {size} bytes"),
+        Err(err) => println!("error writing to stream: {err}"),
+    }
 }
 
 fn main() {
@@ -45,14 +64,24 @@ fn main() {
                     }
                 }
                 
-                // parse the buffer, turn into the string, then gives a response accordingly 
+                // parse the buffer, turn into the string, then give a response accordingly 
                 let buf_as_str = unsafe { std::str::from_utf8_unchecked(&buffer) };
                 let path = parse_path(&buf_as_str.to_string());
-                if path == "/" {
-                    respond_202(&mut _stream);
+                // if path == "/" {
+                //     respond_202(&mut _stream);
+                // } else {
+                //     respond_404(&mut _stream);
+                // }
+                
+                // further parse the path that results after parsing the buffer,
+                // give response accordingly
+                let path_parsed: Vec<&str> = path.split('/').collect();
+                if path_parsed[1].to_string() == "echo" {
+                    echo_respond(&mut _stream, &path_parsed[2].to_string());
                 } else {
-                    respond_404(&mut _stream);
+                    println!("not an echo command");
                 }
+
             }
             Err(err) => {
                 println!("error: {err}");
