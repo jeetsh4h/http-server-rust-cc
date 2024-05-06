@@ -19,6 +19,8 @@ fn respond_404(stream: &mut TcpStream) {
 
 fn parse_path(http_response: &String) -> String {
     let whitespace_split_response: Vec<&str> = http_response.split_whitespace().collect();
+
+    // this assumes that I will always receive a valid HTTP request
     return whitespace_split_response[1].to_string();
 }
 
@@ -27,27 +29,30 @@ fn main() {
     println!("Logs from your program will appear here!");
 
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    let mut incoming_buf_as_str = String::new();
+    let mut buffer = [0; 1024];
 
     for stream in listener.incoming() {
         match stream {
             Ok(mut _stream) => {
                 println!("accepted new connection");
-
-                match _stream.read_to_string(&mut incoming_buf_as_str) {
+                
+                // recv1024 function
+                match _stream.read(&mut buffer) {
                     Ok(size) => println!("Received {size} bytes"),
                     Err(err) => {
                         println!("error reading from stream: {err}");
                         continue;
                     }
                 }
-                let path = parse_path(&incoming_buf_as_str);
+                
+                // parse the buffer, turn into the string, then gives a response accordingly 
+                let buf_as_str = unsafe { std::str::from_utf8_unchecked(&buffer) };
+                let path = parse_path(&buf_as_str.to_string());
                 if path == "/" {
-                    respond_404(&mut _stream)
-                } else {
                     respond_202(&mut _stream);
+                } else {
+                    respond_404(&mut _stream);
                 }
-
             }
             Err(err) => {
                 println!("error: {err}");
