@@ -170,7 +170,9 @@ async fn respond_file_put(stream: &mut TcpStream, file_path: &str, buf: &[u8], b
     let full_path = Path::new(dir).join(filename);
 
     let body_len = req.headers.iter().find(|h| h.name == "Content-Length").unwrap().value[0];
+    println!("body_len before cast: {}", body_len);
     let body_len = usize::from(body_len);
+    println!("body_len after cast: {}", body_len);
     let body = &buf[body_offset..(body_offset + body_len)];
 
     println!("indices: {}.. {};", body_offset, body_offset + body_len);
