@@ -59,7 +59,7 @@ async fn handle_connection(mut stream: TcpStream) {
                         } else if method == "POST" {
                             match path {
                                 _ if path.starts_with("/files/") => {
-                                    respond_file_put(&path, &buf, body_offset.unwrap(), &req).await
+                                    respond_file_put(&mut stream, &path, &buf, body_offset.unwrap(), &req).await
                                 }
                                 _ => respond_404_headers(&mut stream, "application/octet-stream").await,
                             }
@@ -161,7 +161,7 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
     };
 }
 
-async fn respond_file_put(file_path: &str, buf: &[u8], body_offset: usize, req: &Request<'_, '_>) {
+async fn respond_file_put(stream: &mut TcpStream, file_path: &str, buf: &[u8], body_offset: usize, req: &Request<'_, '_>) {
     let filename = &file_path[7..]; // no bounds check for 7th index
 
     let args: Vec<String> = std::env::args().collect();
@@ -178,7 +178,7 @@ async fn respond_file_put(file_path: &str, buf: &[u8], body_offset: usize, req: 
         Ok(mut file) => {
             match file.write_all(body).await {
                 Err(e) => println!("error writing to file: {}", e),
-                Ok(_) => return
+                Ok(_) => respond_ok_body(stream, "201", "", "text/plain").await,
             }
         }
     }
