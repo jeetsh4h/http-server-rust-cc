@@ -48,7 +48,7 @@ async fn handle_connection(mut stream: TcpStream) {
                                 "/" => respond_200(&mut stream).await,
                                 _ if path.starts_with("/echo/") => {
                                     // no bounds check for 6th index
-                                    respond_ok_body(&mut stream, "202", &path[6..], "text/plain")
+                                    respond_ok_body(&mut stream, "200", &path[6..], "text/plain")
                                         .await
                                 }
                                 "/user-agent" => respond_user_agent(&mut stream, &req).await,
