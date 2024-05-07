@@ -171,6 +171,7 @@ async fn respond_file_put(file_path: &str, buf: &[u8], body_offset: usize, req: 
 
     let body_len = req.headers.iter().find(|h| h.name == "Content-Length").unwrap().value[0];
     let body_len = usize::from(body_len);
+    println!("{}, {}", body_offset, body_len);
     let body = &buf[body_offset..body_len];
 
     match File::create(full_path).await {
