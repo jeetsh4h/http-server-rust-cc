@@ -79,8 +79,15 @@ async fn respond_404(stream: &mut TcpStream) {
     };
 }
 
-async fn respond_404_header(stream: &mut TcpStream) {
-    match stream.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n").await {
+async fn respond_404_headers(stream: &mut TcpStream, content_type: &str) {
+    let status_line = "HTTP/1.1 404 Not Found\r\n";
+    let content_type = format!("Content-Type: {}\r\n", content_type);
+    let content_length = "Content-Length: 0\r\n";
+    let body = "\r\n";
+
+    let response = format!("{}{}{}{}", status_line, content_type, content_length, body);
+
+    match stream.write(response.as_bytes()).await {
         Ok(size) => println!("Sent {size} bytes"),
         Err(err) => println!("error writing to stream: {err}"),
     };
@@ -139,7 +146,7 @@ async fn respond_file(stream: &mut TcpStream, file_path: &str) {
     match File::open(full_path).await {
         Err(e) => {
             println!("error opening file: {}", e);
-            respond_404_header(stream).await;
+            respond_404_headers(stream, "application/octet-stream").await;
         }
         Ok(file) => {
             let mut file = file;
