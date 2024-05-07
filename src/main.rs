@@ -173,6 +173,7 @@ async fn respond_file_put(stream: &mut TcpStream, file_path: &str, buf: &[u8], b
     let body_len = usize::from(body_len);
     let body = &buf[body_offset..(body_offset + body_len)];
 
+    println!("indices: {}.. {};", body_offset, body_offset + body_len);
     println!("buffer length: {}", body.len());
 
     match File::create(full_path).await {
