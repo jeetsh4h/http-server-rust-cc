@@ -131,7 +131,8 @@ async fn respond_user_agent(stream: &mut TcpStream, buf: &[u8]) {
 async fn respond_file(stream: &mut TcpStream, file_path: &str) {
     let filename = &file_path[7..]; // no bounds check for 7th index
 
-    let args: Vec<String> = std::env::args().collect(); //        0              1          2
+    let args: Vec<String> = std::env::args().collect();
+    assert_eq!(args.len(), 3);
     let dir = args.get(2).unwrap();     // ./your_server.sh --directory <directory>
 
     let full_path = Path::new(dir).join(filename);
