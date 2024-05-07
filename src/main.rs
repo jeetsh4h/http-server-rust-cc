@@ -3,9 +3,25 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
-use httparse::{Request, EMPTY_HEADER};
-use std::error::Error;
+use httparse::{Request, EMPTY_HEADER, Error};
 use regex::Regex;
+
+
+#[tokio::main]
+async fn main() {
+    println!("Logs from your program will appear here!");
+
+    let listener = TcpListener::bind("127.0.0.1:4221").await.unwrap();
+    println!("Server listening on port 4221");
+
+    loop {
+        let (stream, _) = listener.accept().await.unwrap();
+        task::spawn(async move {
+            handle_connection(stream).await;
+        });
+    }
+}
+
 
 async fn handle_connection(mut stream: TcpStream) {
     let mut buf = vec![0; 1024];
@@ -80,11 +96,11 @@ async fn respond_echo(stream: &mut TcpStream, echo_path: &str) {
     respond_202_body(stream, echo_string).await;
 }
 
-async fn parse_request_path(buf: &[u8]) -> Result<String, Box<dyn Error>> {
-    let mut headers = [ EMPTY_HEADER; 4 ];
+async fn parse_request_path(buf: &[u8]) -> Result<String, Error> {
+    let mut headers = [EMPTY_HEADER; 4];
     let mut req = Request::new(&mut headers);
     match req.parse(buf) {
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(e),
         Ok(_body_offset) => {
             let path = req.path.unwrap();
             Ok(path.to_string())
@@ -110,21 +126,5 @@ async fn respond_user_agent(stream: &mut TcpStream, buf: &[u8]) {
             }
         }
         Err(e) => println!("error parsing headers: {}", e),
-    }
-}
-
-
-#[tokio::main]
-async fn main() {
-    println!("Logs from your program will appear here!");
-
-    let listener = TcpListener::bind("127.0.0.1:4221").await.unwrap();
-    println!("Server listening on port 4221");
-
-    loop {
-        let (stream, _) = listener.accept().await.unwrap();
-        task::spawn(async move {
-            let _ = handle_connection(stream);
-        });
     }
 }
