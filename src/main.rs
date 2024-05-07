@@ -79,6 +79,13 @@ async fn respond_404(stream: &mut TcpStream) {
     };
 }
 
+async fn respond_404_header(stream: &mut TcpStream) {
+    match stream.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n").await {
+        Ok(size) => println!("Sent {size} bytes"),
+        Err(err) => println!("error writing to stream: {err}"),
+    };
+}
+
 async fn respond_202(stream: &mut TcpStream) {
     match stream.write(b"HTTP/1.1 200 OK\r\n\r\n").await {
         Ok(size) => println!("Sent {size} bytes"),
@@ -131,7 +138,7 @@ async fn respond_file(stream: &mut TcpStream, file_path: &str) {
     match File::open(full_path).await {
         Err(e) => {
             println!("error opening file: {}", e);
-            respond_404(stream).await;
+            respond_404_header(stream).await;
         }
         Ok(file) => {
             let mut file = file;
