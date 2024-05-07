@@ -48,7 +48,8 @@ async fn handle_connection(mut stream: TcpStream) {
                                 "/" => respond_200(&mut stream).await,
                                 _ if path.starts_with("/echo/") => {
                                     // no bounds check for 6th index
-                                    respond_ok_body(&mut stream, "202", &path[6..], "text/plain").await
+                                    respond_ok_body(&mut stream, "202", &path[6..], "text/plain")
+                                        .await
                                 }
                                 "/user-agent" => respond_user_agent(&mut stream, &req).await,
                                 _ if path.starts_with("/files/") => {
@@ -59,9 +60,19 @@ async fn handle_connection(mut stream: TcpStream) {
                         } else if method == "POST" {
                             match path {
                                 _ if path.starts_with("/files/") => {
-                                    respond_file_put(&mut stream, &path, &buf, body_offset.unwrap(), &req).await
+                                    respond_file_put(
+                                        &mut stream,
+                                        &path,
+                                        &buf,
+                                        body_offset.unwrap(),
+                                        &req,
+                                    )
+                                    .await
                                 }
-                                _ => respond_404_headers(&mut stream, "application/octet-stream").await,
+                                _ => {
+                                    respond_404_headers(&mut stream, "application/octet-stream")
+                                        .await
+                                }
                             }
                         } else {
                             respond_404(&mut stream).await;
@@ -105,7 +116,12 @@ async fn respond_200(stream: &mut TcpStream) {
     };
 }
 
-async fn respond_ok_body(stream: &mut TcpStream, response_code: &str, body: &str, content_type: &str) {
+async fn respond_ok_body(
+    stream: &mut TcpStream,
+    response_code: &str,
+    body: &str,
+    content_type: &str,
+) {
     let body_len = body.len();
 
     let status_line = format!("HTTP/1.1 {} OK\r\n", response_code);
@@ -137,7 +153,7 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
 
     let args: Vec<String> = std::env::args().collect();
     assert_eq!(args.len(), 3);
-    let dir = args.get(2).unwrap();     // ./your_server.sh --directory <directory>
+    let dir = args.get(2).unwrap(); // ./your_server.sh --directory <directory>
 
     let full_path = Path::new(dir).join(filename);
     match File::open(full_path).await {
@@ -161,30 +177,35 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
     };
 }
 
-async fn respond_file_put(stream: &mut TcpStream, file_path: &str, buf: &[u8], body_offset: usize, req: &Request<'_, '_>) {
+async fn respond_file_put(
+    stream: &mut TcpStream,
+    file_path: &str,
+    buf: &[u8],
+    body_offset: usize,
+    req: &Request<'_, '_>,
+) {
     let filename = &file_path[7..]; // no bounds check for 7th index
 
     let args: Vec<String> = std::env::args().collect();
     assert_eq!(args.len(), 3);
-    let dir = args.get(2).unwrap();     // ./your_server.sh --directory <directory>
+    let dir = args.get(2).unwrap(); // ./your_server.sh --directory <directory>
     let full_path = Path::new(dir).join(filename);
 
-    let body_len = req.headers.iter().find(|h| h.name == "Content-Length").unwrap().value[0];
-    println!("body_len before cast: {}", body_len);
-    let body_len = usize::from(body_len);
-    println!("body_len after cast: {}", body_len);
-    let body = &buf[body_offset..(body_offset + body_len)];
+    let body_len_buf = req
+        .headers
+        .iter()
+        .find(|h| h.name == "Content-Length")
+        .unwrap()
+        .value;
+    let body_len: usize = std::str::from_utf8(body_len_buf).unwrap().parse().unwrap();
 
-    println!("indices: {}.. {};", body_offset, body_offset + body_len);
-    println!("buffer length: {}", body.len());
+    let body = &buf[body_offset..(body_offset + body_len)];
 
     match File::create(full_path).await {
         Err(e) => println!("error creating file: {}", e),
-        Ok(mut file) => {
-            match file.write_all(body).await {
-                Err(e) => println!("error writing to file: {}", e),
-                Ok(_) => respond_ok_body(stream, "201", "", "text/plain").await,
-            }
-        }
+        Ok(mut file) => match file.write_all(body).await {
+            Err(e) => println!("error writing to file: {}", e),
+            Ok(_) => respond_ok_body(stream, "201", "", "text/plain").await,
+        },
     }
 }
