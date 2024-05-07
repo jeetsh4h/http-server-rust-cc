@@ -2,6 +2,7 @@ use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use httparse::{Request, EMPTY_HEADER};
 use std::error::Error;
+use regex::Regex;
 
 fn respond_202(stream: &mut TcpStream) {
     match stream.write(b"HTTP/1.1 200 OK\r\n\r\n") {
@@ -92,11 +93,14 @@ fn main() {
 
                         // parse path from request and call proper function
                         match parse_request_path(&buf) {
-                            Ok(path) => match path.as_str() {
-                                "/" => respond_202(&mut _stream),
-                                r"/echo/*" => respond_echo(&mut _stream, &path),
-                                "/user-agent" => respond_user_agent(&mut _stream, &buf),
-                                _ => respond_404(&mut _stream),
+                            Ok(path) => {
+                                let echo_regex = Regex::new(r"^/echo/[\x00-\x7F]*$").unwrap();
+                                match path.as_str() {
+                                    "/" => respond_202(&mut _stream),
+                                    _ if echo_regex.is_match(&path) => respond_echo(&mut _stream, &path),
+                                    "/user-agent" => respond_user_agent(&mut _stream, &buf),
+                                    _ => respond_404(&mut _stream),
+                                }
                             },
                             Err(e) => println!("error parsing: {}", e),
                         }
