@@ -281,33 +281,34 @@ async fn respond_echo(stream: &mut TcpStream, req: &Request<'_, '_>, echo_str: &
                 Some(_) => {
                     let encoded_bytes = compress_data(echo_str);
                     let encoded_body_len = encoded_bytes.len().to_string();
+                    unsafe {
+                        let encoded_bytes_as_string =
+                            String::from_utf8_unchecked(encoded_bytes).to_string();
 
-                    let encoded_bytes_as_string =
-                        String::from_utf8_lossy(&encoded_bytes[..encoded_bytes.len()]).to_string();
+                        let headers = vec![
+                            Header {
+                                name: "Content-Encoding",
+                                value: "gzip".as_bytes(),
+                            },
+                            Header {
+                                name: "Content-Type",
+                                value: "text/plain".as_bytes(),
+                            },
+                            Header {
+                                name: "Content-Length",
+                                value: encoded_body_len.as_bytes(),
+                            },
+                        ];
 
-                    let headers = vec![
-                        Header {
-                            name: "Content-Encoding",
-                            value: "gzip".as_bytes(),
-                        },
-                        Header {
-                            name: "Content-Type",
-                            value: "text/plain".as_bytes(),
-                        },
-                        Header {
-                            name: "Content-Length",
-                            value: encoded_body_len.as_bytes(),
-                        },
-                    ];
-
-                    respond_headers(
-                        stream,
-                        "200",
-                        "OK",
-                        &headers,
-                        encoded_bytes_as_string.as_str(),
-                    )
-                    .await;
+                        respond_headers(
+                            stream,
+                            "200",
+                            "OK",
+                            &headers,
+                            encoded_bytes_as_string.as_str(),
+                        )
+                        .await;
+                    }
                 }
                 None => {
                     let headers = vec![
