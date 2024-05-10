@@ -182,7 +182,7 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
             let headers_404 = vec![
                 Header {
                     name: "Content-Type",
-                    value: "application/octet".as_bytes(),
+                    value: "application/octet-stream".as_bytes(),
                 },
                 Header {
                     name: "Content-Length",
@@ -204,7 +204,7 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
                     let headers = vec![
                         Header {
                             name: "Content-Type",
-                            value: "application/octet".as_bytes(),
+                            value: "application/octet-stream".as_bytes(),
                         },
                         Header {
                             name: "Content-Length",
@@ -250,7 +250,7 @@ async fn respond_file_put(
                 let headers = vec![
                     Header {
                         name: "Content-Type",
-                        value: "application/octet".as_bytes(),
+                        value: "application/octet-stream".as_bytes(),
                     },
                     Header {
                         name: "Content-Length",
