@@ -1,5 +1,6 @@
+use flate2::{write::GzEncoder, Compression};
 use httparse::{Header, Request, EMPTY_HEADER};
-use std::path::Path;
+use std::{io::Write, path::Path};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -26,6 +27,11 @@ async fn handle_connection(mut stream: TcpStream) {
     let mut buf = vec![0; 1024];
 
     loop {
+        // IMPORTANT
+        // the below loop assumes that all the requests currently being recieved
+        // can be stored withing one byte.
+        // Another assumption that is being made is that, everything in the request
+        // is encoded using utf-8 or ascii-us
         match stream.read(&mut buf).await {
             Ok(0) => break, // disconnect connections
             Ok(size) => {
@@ -258,7 +264,7 @@ async fn respond_file_put(
 }
 
 async fn respond_echo(stream: &mut TcpStream, req: &Request<'_, '_>, echo_str: &str) {
-    let body_len = echo_str.len().to_string();
+    let decoded_body_len = echo_str.len().to_string();
     let encoding_header = req
         .headers
         .iter()
@@ -266,36 +272,57 @@ async fn respond_echo(stream: &mut TcpStream, req: &Request<'_, '_>, echo_str: &
 
     match encoding_header {
         Some(header) => {
-            if header.value == "gzip".as_bytes() {
-                let headers = vec![
-                    Header {
-                        name: "Content-Encoding",
-                        value: "gzip".as_bytes(),
-                    },
-                    Header {
-                        name: "Content-Type",
-                        value: "text/plain".as_bytes(),
-                    },
-                    Header {
-                        name: "Content-Length",
-                        value: body_len.as_bytes(),
-                    },
-                ];
+            match std::str::from_utf8(header.value)
+                .unwrap()
+                .split(",")
+                .map(|s| s.trim())
+                .find(|s| *s == "gzip")
+            {
+                Some(_) => {
+                    let encoded_bytes = compress_data(echo_str);
+                    let encoded_body_len = encoded_bytes.len().to_string();
 
-                respond_headers(stream, "200", "OK", &headers, echo_str).await;
-            } else {
-                let headers = vec![
-                    Header {
-                        name: "Content-Type",
-                        value: "text/plain".as_bytes(),
-                    },
-                    Header {
-                        name: "Content-Length",
-                        value: body_len.as_bytes(),
-                    },
-                ];
+                    let encoded_bytes_as_string =
+                        String::from_utf8_lossy(&encoded_bytes[..encoded_bytes.len()]).to_string();
 
-                respond_headers(stream, "200", "OK", &headers, echo_str).await;
+                    let headers = vec![
+                        Header {
+                            name: "Content-Encoding",
+                            value: "gzip".as_bytes(),
+                        },
+                        Header {
+                            name: "Content-Type",
+                            value: "text/plain".as_bytes(),
+                        },
+                        Header {
+                            name: "Content-Length",
+                            value: encoded_body_len.as_bytes(),
+                        },
+                    ];
+
+                    respond_headers(
+                        stream,
+                        "200",
+                        "OK",
+                        &headers,
+                        encoded_bytes_as_string.as_str(),
+                    )
+                    .await;
+                }
+                None => {
+                    let headers = vec![
+                        Header {
+                            name: "Content-Type",
+                            value: "text/plain".as_bytes(),
+                        },
+                        Header {
+                            name: "Content-Length",
+                            value: decoded_body_len.as_bytes(),
+                        },
+                    ];
+
+                    respond_headers(stream, "200", "OK", &headers, echo_str).await;
+                }
             }
         }
         None => {
@@ -306,11 +333,17 @@ async fn respond_echo(stream: &mut TcpStream, req: &Request<'_, '_>, echo_str: &
                 },
                 Header {
                     name: "Content-Length",
-                    value: body_len.as_bytes(),
+                    value: decoded_body_len.as_bytes(),
                 },
             ];
 
             respond_headers(stream, "200", "OK", &headers, echo_str).await;
         }
     }
+}
+
+fn compress_data(data: &str) -> Vec<u8> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(data.as_bytes()).unwrap();
+    return encoder.finish().unwrap();
 }
