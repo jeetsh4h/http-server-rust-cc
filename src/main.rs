@@ -211,7 +211,7 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
                             value: body_len.as_bytes(),
                         },
                     ];
-                    respond_headers(stream, "404", "Not Found", &headers, body).await
+                    respond_headers(stream, "200", "OK", &headers, body).await
                 },
             }
         }
