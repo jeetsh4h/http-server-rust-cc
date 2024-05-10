@@ -257,7 +257,7 @@ async fn respond_file_put(
                         value: "0".as_bytes(),
                     },
                 ];
-                respond_headers(stream, "201", "OK", &headers, "").await;
+                respond_headers(stream, "201", "Created", &headers, "").await;
             }
         },
     }
