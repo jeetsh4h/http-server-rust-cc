@@ -1,4 +1,4 @@
-use httparse::{Request, EMPTY_HEADER};
+use httparse::{Header, Request, EMPTY_HEADER};
 use std::path::Path;
 use tokio::{
     fs::File,
@@ -44,20 +44,21 @@ async fn handle_connection(mut stream: TcpStream) {
                         let path = req.path.unwrap();
 
                         if method == "GET" {
+                            // match case to endpoints
                             match path {
-                                "/" => respond_200(&mut stream).await,
+                                "/" => respond_no_headers(&mut stream, "200", "OK").await,
                                 _ if path.starts_with("/echo/") => {
                                     // no bounds check for 6th index
-                                    respond_ok_body(&mut stream, "200", &path[6..], "text/plain")
-                                        .await
+                                    respond_echo(&mut stream, &req, &path[6..]).await
                                 }
                                 "/user-agent" => respond_user_agent(&mut stream, &req).await,
                                 _ if path.starts_with("/files/") => {
                                     respond_file_get(&mut stream, &path).await
                                 }
-                                _ => respond_404(&mut stream).await,
+                                _ => respond_no_headers(&mut stream, "404", "Not Found").await,
                             }
                         } else if method == "POST" {
+                            // match case to endpoints
                             match path {
                                 _ if path.starts_with("/files/") => {
                                     respond_file_put(
@@ -70,12 +71,28 @@ async fn handle_connection(mut stream: TcpStream) {
                                     .await
                                 }
                                 _ => {
-                                    respond_404_headers(&mut stream, "application/octet-stream")
-                                        .await
+                                    let headers_404 = vec![
+                                        Header {
+                                            name: "Content-Type",
+                                            value: "text/plain".as_bytes(),
+                                        },
+                                        Header {
+                                            name: "Content-Length",
+                                            value: "0".as_bytes(),
+                                        },
+                                    ];
+                                    respond_headers(
+                                        &mut stream,
+                                        "404",
+                                        "Not Found",
+                                        &headers_404,
+                                        "",
+                                    )
+                                    .await
                                 }
                             }
                         } else {
-                            respond_404(&mut stream).await;
+                            respond_no_headers(&mut stream, "404", "Not Found").await;
                         }
                     }
                 }
@@ -88,61 +105,58 @@ async fn handle_connection(mut stream: TcpStream) {
     }
 }
 
-async fn respond_404(stream: &mut TcpStream) {
-    match stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n").await {
-        Ok(size) => println!("Sent {size} bytes"),
-        Err(err) => println!("error writing to stream: {err}"),
-    };
-}
-
-async fn respond_404_headers(stream: &mut TcpStream, content_type: &str) {
-    let status_line = "HTTP/1.1 404 Not Found\r\n";
-    let content_type = format!("Content-Type: {}\r\n", content_type);
-    let content_length = "Content-Length: 0\r\n";
-    let body = "\r\n";
-
-    let response = format!("{}{}{}{}", status_line, content_type, content_length, body);
-
-    match stream.write(response.as_bytes()).await {
-        Ok(size) => println!("Sent {size} bytes"),
-        Err(err) => println!("error writing to stream: {err}"),
-    };
-}
-
-async fn respond_200(stream: &mut TcpStream) {
-    match stream.write(b"HTTP/1.1 200 OK\r\n\r\n").await {
-        Ok(size) => println!("Sent {size} bytes"),
-        Err(err) => println!("error writing to stream: {err}"),
-    };
-}
-
-async fn respond_ok_body(
+async fn respond_headers(
     stream: &mut TcpStream,
     response_code: &str,
+    response_reason: &str,
+    headers: &Vec<Header<'_>>,
     body: &str,
-    content_type: &str,
 ) {
-    let body_len = body.len();
+    let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, response_reason);
+    let headers_str: String = headers
+        .iter()
+        .map(|h| format!("{}: {}\r\n", h.name, String::from_utf8_lossy(h.value)))
+        .collect::<Vec<String>>()
+        .join("");
+    let body_fmt = format!("\r\n{}", body);
 
-    let status_line = format!("HTTP/1.1 {} OK\r\n", response_code);
-    let content_type = format!("Content-Type: {}\r\n", content_type);
-    let content_length = format!("Content-Length: {}\r\n", body_len);
-    let body = format!("\r\n{}", body);
+    let response = format!("{}{}{}", status_line, headers_str, body_fmt);
+    match stream.write(response.as_bytes()).await {
+        Ok(size) => println!("Sent {size} bytes"),
+        Err(err) => println!("error writing to stream: {err}"),
+    };
+}
 
-    let response = format!("{}{}{}{}", status_line, content_type, content_length, body);
+async fn respond_no_headers(stream: &mut TcpStream, response_code: &str, response_reason: &str) {
+    let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, response_reason);
+    let response = format!("{}\r\n", status_line);
 
     match stream.write(response.as_bytes()).await {
         Ok(size) => println!("Sent {size} bytes"),
         Err(err) => println!("error writing to stream: {err}"),
-    }
+    };
 }
 
 async fn respond_user_agent(stream: &mut TcpStream, req: &Request<'_, '_>) {
-    let user_agent_header = req.headers.iter().find(|h| h.name == "User-Agent");
+    let user_agent_header = req
+        .headers
+        .iter()
+        .find(|h| h.name.to_lowercase() == "user-agent");
     match user_agent_header {
         Some(header) => unsafe {
             let body = std::str::from_utf8_unchecked(header.value);
-            respond_ok_body(stream, "200", body, "text/plain").await;
+            let body_len = body.len().to_string();
+            let headers = vec![
+                Header {
+                    name: "Content-Type",
+                    value: "text/plain".as_bytes(),
+                },
+                Header {
+                    name: "Content-Length",
+                    value: body_len.as_bytes(),
+                },
+            ];
+            respond_headers(stream, "200", "OK", &headers, body).await;
         },
         None => println!("error: user-agent header not present"),
     }
@@ -159,7 +173,17 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
     match File::open(full_path).await {
         Err(e) => {
             println!("error opening file: {}", e);
-            respond_404_headers(stream, "application/octet-stream").await;
+            let headers_404 = vec![
+                Header {
+                    name: "Content-Type",
+                    value: "application/octet".as_bytes(),
+                },
+                Header {
+                    name: "Content-Length",
+                    value: "0".as_bytes(),
+                },
+            ];
+            respond_headers(stream, "404", "Not Found", &headers_404, "").await;
         }
         Ok(file) => {
             let mut file = file;
@@ -170,7 +194,18 @@ async fn respond_file_get(stream: &mut TcpStream, file_path: &str) {
                 }
                 Ok(_) => unsafe {
                     let body = std::str::from_utf8_unchecked(&buf);
-                    respond_ok_body(stream, "200", body, "application/octet-stream").await;
+                    let body_len = buf.len().to_string();
+                    let headers = vec![
+                        Header {
+                            name: "Content-Type",
+                            value: "application/octet".as_bytes(),
+                        },
+                        Header {
+                            name: "Content-Length",
+                            value: body_len.as_bytes(),
+                        },
+                    ];
+                    respond_headers(stream, "404", "Not Found", &headers, body).await
                 },
             }
         }
@@ -194,7 +229,7 @@ async fn respond_file_put(
     let body_len_buf = req
         .headers
         .iter()
-        .find(|h| h.name == "Content-Length")
+        .find(|h| h.name.to_lowercase() == "content-length")
         .unwrap()
         .value;
     let body_len: usize = std::str::from_utf8(body_len_buf).unwrap().parse().unwrap();
@@ -205,7 +240,77 @@ async fn respond_file_put(
         Err(e) => println!("error creating file: {}", e),
         Ok(mut file) => match file.write_all(body).await {
             Err(e) => println!("error writing to file: {}", e),
-            Ok(_) => respond_ok_body(stream, "201", "", "text/plain").await,
+            Ok(_) => {
+                let headers = vec![
+                    Header {
+                        name: "Content-Type",
+                        value: "application/octet".as_bytes(),
+                    },
+                    Header {
+                        name: "Content-Length",
+                        value: "0".as_bytes(),
+                    },
+                ];
+                respond_headers(stream, "201", "OK", &headers, "").await;
+            }
         },
+    }
+}
+
+async fn respond_echo(stream: &mut TcpStream, req: &Request<'_, '_>, echo_str: &str) {
+    let body_len = echo_str.len().to_string();
+    let encoding_header = req
+        .headers
+        .iter()
+        .find(|h| h.name.to_lowercase() == "accept-encoding");
+
+    match encoding_header {
+        Some(header) => {
+            if header.value == "gzip".as_bytes() {
+                let headers = vec![
+                    Header {
+                        name: "Content-Encoding",
+                        value: "gzip".as_bytes(),
+                    },
+                    Header {
+                        name: "Content-Type",
+                        value: "text/plain".as_bytes(),
+                    },
+                    Header {
+                        name: "Content-Length",
+                        value: body_len.as_bytes(),
+                    },
+                ];
+
+                respond_headers(stream, "200", "OK", &headers, echo_str).await;
+            } else {
+                let headers = vec![
+                    Header {
+                        name: "Content-Type",
+                        value: "text/plain".as_bytes(),
+                    },
+                    Header {
+                        name: "Content-Length",
+                        value: body_len.as_bytes(),
+                    },
+                ];
+
+                respond_headers(stream, "200", "OK", &headers, echo_str).await;
+            }
+        }
+        None => {
+            let headers = vec![
+                Header {
+                    name: "Content-Type",
+                    value: "text/plain".as_bytes(),
+                },
+                Header {
+                    name: "Content-Length",
+                    value: body_len.as_bytes(),
+                },
+            ];
+
+            respond_headers(stream, "200", "OK", &headers, echo_str).await;
+        }
     }
 }
